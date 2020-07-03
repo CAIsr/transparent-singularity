@@ -23,11 +23,6 @@ while [[ $# -gt 0 ]]
       shift # past argument
       shift # past value
       ;;
-      -cvl|--cvl)
-      cvl="$2"
-      shift # past argument
-      shift # past value
-      ;;
       --default)
       DEFAULT=YES
       shift # past argument
@@ -43,18 +38,19 @@ set -- "${POSITIONAL[@]}" # restore positional parameters
 
 if [[ -n $1 ]]; then
     container="$1"
-    cvl=False
 fi
 
 if [ -z "$container" ]; then
       echo "-----------------------------------------------"
       echo "Select the container you would like to install:"
       echo "-----------------------------------------------"
-      curl -s -S -X GET https://swift.rc.nectar.org.au:8888/v1/AUTH_d6165cc7b52841659ce8644df1884d5e/singularityImages
+      curl -s https://raw.githubusercontent.com/NeuroDesk/caid/master/Containerlist.md
+      echo " "
       echo "-----------------------------------------------"
       echo "usage examples:"
       echo "./run_transparent_singularity.sh CONTAINERNAME"
-      echo "./run_transparent_singularity.sh --container convert3d_1.0.0_20200420.sif --storage sylabs"
+      echo "./run_transparent_singularity.sh convert3d_1.0.0_20200701.sif"
+      echo "./run_transparent_singularity.sh --container convert3d_1.0.0_20200701.sif --storage docker"
       echo "-----------------------------------------------"
       exit
    else
@@ -69,12 +65,11 @@ if [ -z "$container" ]; then
       echo "-------------------------------------"
 fi
 
-# default is swift storage
-container_pull="curl -s -S -X GET https://swift.rc.nectar.org.au:8888/v1/AUTH_d6165cc7b52841659ce8644df1884d5e/singularityImages/$container -O"
+# default is docker-hub
+storage="docker"
 
-
-if [ "$storage" = "sylabs" ]; then
-   echo "pulling from sylabs cloud"
+if [ "$storage" = "docker" ]; then
+   echo "pulling from docker cloud"
    containerName="$(cut -d'_' -f1 <<< ${container})"
    echo "containerName: ${containerName}"
 
@@ -84,7 +79,7 @@ if [ "$storage" = "sylabs" ]; then
    containerDateAndFileEnding="$(cut -d'_' -f3 <<< ${container})"
    containerDate="$(cut -d'.' -f1 <<< ${containerDateAndFileEnding})"
    echo "containerDate: ${containerDate}"
-   container_pull="singularity pull library://sbollmann/caid/${containerName}:${containerVersion}_${containerDate}"
+   container_pull="singularity pull docker://vnmd/${containerName}_${containerVersion}:${containerDate}"
 fi
 
 echo "checking for singularity ..."
@@ -150,59 +145,3 @@ echo "#%Module##################################################################
 echo "module-whatis  ${container}" >> ${modulePath}/${moduleName}
 echo "append-path PATH ${deploy_path}" >> ${modulePath}/${moduleName}
 echo "rm ${modulePath}/${moduleName}" >> ts_uninstall.sh
-
-echo "cvl-variable is set to: $cvl"
-
-if [[ "$cvl" == "true" ]]; then
-   application_name=`echo $container | cut -d _ -f 1`
-   application_version=`echo $container | cut -d _ -f 2`
-   echo "create start script for cvl"
-   echo "#!/usr/bin/env bash" > cvl-${container}.sh
-   echo 'export SINGULARITY_BINDPATH="/state/,/RDS,/30days,/90days,/QRISdata,$SINGULARITY_BINDPATH"' >>  cvl-${container}.sh
-   echo "xterm -title '${application_name} ${application_version}' -e /bin/bash -c 'module load singularity/3.5.0;$deploy_path/$container'" >>  cvl-${container}.sh
-   chmod 775 cvl-${container}.sh
-   mv cvl-${container}.sh ../../bin
-   echo "rm ../../bin/cvl-${container}.sh" >> ts_uninstall.sh
-
-   echo "create desktop entry for cvl:"
-   echo "[Desktop Entry]" > cvl-${container}.desktop
-   echo "Comment=${application_name} ${application_version} - CVL - Computing Power to the people" >> cvl-${container}.desktop
-   echo "Exec=/sw7/CVL/bin/cvl-${container}.sh" >> cvl-${container}.desktop
-   echo "# You will need to update this to the right icon name/type" >> cvl-${container}.desktop
-   echo "Icon=/sw7/CVL/config/icons/cvl-neuroimaging.jpg" >> cvl-${container}.desktop
-   echo "Name=${application_name} ${application_version}" >> cvl-${container}.desktop
-   echo "StartupNotify=true" >> cvl-${container}.desktop
-   echo "#Terminal=1" >> cvl-${container}.desktop
-   echo "# TerminalOptions=--noclose -T '${container} Debug Window'" >> cvl-${container}.desktop
-   echo "Type=Application" >> cvl-${container}.desktop
-   echo "Categories=${application_name}" >> cvl-${container}.desktop
-   echo "X-KDE-SubstituteUID=false" >> cvl-${container}.desktop
-   echo "X-KDE-Username=" >> cvl-${container}.desktop
-   chmod 775 cvl-${container}.desktop
-   mv cvl-${container}.desktop ../../xdg_data_dirs/applications/
-   echo "rm ../../xdg_data_dirs/applications/cvl-${container}.desktop" >> ts_uninstall.sh
-
-   echo "create directory entry for cvl:"
-   echo "[Desktop Entry]" > cvl-${container}.directory
-   echo "Comment=${application_name} ${application_version} - CVL - Computing Power to the people" >> cvl-${container}.directory
-   echo "GenericName=" >> cvl-${container}.directory
-   echo "Icon=/sw7/CVL/config/icons/cvl-neuroimaging.jpg" >> cvl-${container}.directory
-   echo "Type=Directory" >> cvl-${container}.directory
-   echo "Name=${application_name}" >> cvl-${container}.directory
-   chmod 775 cvl-${container}.directory
-   mv cvl-${container}.directory ../../xdg_data_dirs/desktop-directories/
-   echo "rm ../../xdg_data_dirs/desktop-directories/cvl-${container}.directory" >> ts_uninstall.sh
-
-   echo "If this is the first time you install this software, add a menu entry in ../xdg_config_dirs/menus/cvl.menu - category name: ${application_name}"
-   echo "----------------------------------"
-   echo "<Menu>"
-   echo "   <Name>CVL ${application_name}</Name>"
-   echo "   <Directory>cvl-${application_name}.directory</Directory>"
-   echo "   <Include>"
-   echo "     <And>"
-   echo "       <Category>${application_name}</Category>"
-   echo "     </And>"
-   echo "   </Include>"
-   echo " </Menu>"
-
-fi
