@@ -16,6 +16,12 @@ echo "Singularity bindpath should at least have vnm path!"
 _script="$(readlink -f ${BASH_SOURCE[0]})" ## who am i? ##
 _base="$(dirname $_script)" ## Delete last component from $_script ##
 
+echo "making sure this is not running in a symlinked directory (singularity bug)"
+echo "path: $_base"
+cd $_base
+_base=`pwd -P`
+echo "corrected path: $_base"
+
 POSITIONAL=()
 while [[ $# -gt 0 ]]
    do
@@ -54,9 +60,9 @@ if [ -z "$container" ]; then
       echo "Select the container you would like to install:"
       echo "-----------------------------------------------"
       echo "singularity container cache list:"
-      curl -s -S -X GET https://swift.rc.nectar.org.au:8888/v1/AUTH_d6165cc7b52841659ce8644df1884d5e/singularityImages
+      # curl -s -S -X GET https://swift.rc.nectar.org.au:8888/v1/AUTH_d6165cc7b52841659ce8644df1884d5e/singularityImages
       # curl -s -S -X GET https://objectstorage.eu-zurich-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/
-      # curl -s -S -X GET https://objectstorage.us-ashburn-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/
+      curl -s -S -X GET https://objectstorage.us-ashburn-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/
       echo " "
       echo "-----------------------------------------------"
       echo "usage examples:"
@@ -108,17 +114,17 @@ echo "trying if $container exists in the cache"
 
 
 # check if image is available on singularity caches:
-if curl --output /dev/null --silent --head --fail "https://swift.rc.nectar.org.au:8888/v1/AUTH_d6165cc7b52841659ce8644df1884d5e/singularityImages/$container"; then
-   echo "$container exists in the nectar cache"
-else
+# if curl --output /dev/null --silent --head --fail "https://swift.rc.nectar.org.au:8888/v1/AUTH_d6165cc7b52841659ce8644df1884d5e/singularityImages/$container"; then
+#    echo "$container exists in the nectar cache"
+# else
    if curl --output /dev/null --silent --head --fail "https://objectstorage.us-ashburn-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/$container"; then
       echo "$container exists in the oracle cache"
-      swift_down="true"
+      # swift_down="true"
    else
       echo "$container does not exist in any cache - loading from docker!"
       storage="docker"
    fi
-fi
+# fi
 
 
 if [ "$storage" = "docker" ]; then
@@ -129,13 +135,14 @@ else
    qq=`which  aria2c`
    if [[  ${#qq} -lt 1 ]]; then
       echo "aria2 is not install. Defaulting to curl."
-      if  [ "$swift_down" = "true" ]; then
+      # if  [ "$swift_down" = "true" ]; then
          container_pull="curl -X GET https://objectstorage.us-ashburn-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/$container -O"
-      else
-         container_pull="curl -X GET https://swift.rc.nectar.org.au:8888/v1/AUTH_d6165cc7b52841659ce8644df1884d5e/singularityImages/$container -O"
-      fi
+      # else
+         # container_pull="curl -X GET https://swift.rc.nectar.org.au:8888/v1/AUTH_d6165cc7b52841659ce8644df1884d5e/singularityImages/$container -O"
+      # fi
    else 
-      container_pull="aria2c https://swift.rc.nectar.org.au:8888/v1/AUTH_d6165cc7b52841659ce8644df1884d5e/singularityImages/$container https://objectstorage.us-ashburn-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/$container https://objectstorage.eu-zurich-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/$container"
+      container_pull="aria2c https://objectstorage.us-ashburn-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/$container https://objectstorage.eu-zurich-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/$container"
+      # container_pull="aria2c https://objectstorage.us-ashburn-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/$container https://objectstorage.eu-zurich-1.oraclecloud.com/n/nrrir2sdpmdp/b/neurodesk/o/$container  https://swift.rc.nectar.org.au:8888/v1/AUTH_d6165cc7b52841659ce8644df1884d5e/singularityImages/$container"
    fi
 fi
 
@@ -162,15 +169,15 @@ singularity exec --pwd $_base $container $_base/ts_binaryFinder.sh
 
 echo "checking if commands.txt exists now"
 if  [[ -f $_base/commands.txt ]]; then
-   echo "This worked!"
+   echo "[DEBUG] run_transparent_singularity: This worked!"
 else
-   echo "Trying again with Singularity Bindpath set:"
-   export SINGULARITY_BINDPATH=/vnm
+   echo "[DEBUG] run_transparent_singularity: Trying to set singularity bindpaths:"
+   export SINGULARITY_BINDPATH=/data
    singularity exec --pwd $_base $container $_base/ts_binaryFinder.sh
    if  [[ -f $_base/commands.txt ]]; then
-      echo "This worked!"
+      echo "[DEBUG] run_transparent_singularity: This worked!"
    else
-      echo "Something is wrong with the Singularity Bindpath."
+      echo "[DEBUG] run_transparent_singularity: Something is wrong with the Singularity Bindpath."
       exit 2
    fi
 fi
